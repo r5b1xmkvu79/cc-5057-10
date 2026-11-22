@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Harbor Quarter — Landmark Guide Editor</title>
+<link rel="stylesheet" href="./style.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "/node_modules/three/build/three.module.js",
+    "three/addons/": "/node_modules/three/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="brand">
+      <span class="dot"></span>
+      <strong>Harbor Quarter</strong>
+      <span class="sub">Landmark Guide Editor</span>
+    </div>
+    <div class="scene-picker">
+      <label>Route set</label>
+      <select id="scene-select">
+        <option value="harbor-quarter">Harbor Quarter — two routes, one set-piece</option>
+      </select>
+    </div>
+    <div class="modes" role="tablist" aria-label="Editor mode">
+      <button data-mode="edit" class="active" role="tab">Edit</button>
+      <button data-mode="replay" role="tab">Route replay</button>
+      <button data-mode="tradeoff" role="tab">Trade-off</button>
+    </div>
+    <div class="top-actions">
+      <button id="btn-solve" title="Run the placement kernel">Auto-place</button>
+      <button id="btn-report" title="Write the measured plan">Export report</button>
+    </div>
+  </header>
+
+  <main id="workspace">
+    <section id="viewport-wrap">
+      <canvas id="viewport"></canvas>
+      <canvas id="measure-overlay"></canvas>
+      <div id="viewport-hud">
+        <div id="hud-view-badge"></div>
+        <div id="hud-measure" class="hud-panel"></div>
+      </div>
+      <div id="replay-bar" class="hidden">
+        <button id="play-toggle" aria-label="Play route">▶</button>
+        <input id="replay-slider" type="range" min="0" max="1000" value="0" />
+        <span id="replay-readout">0.0 / 0.0 m</span>
+        <label class="chk"><input id="chk-replay-trace" type="checkbox" checked /> show cone</label>
+        <button id="btn-prev-key">‹ key</button>
+        <button id="btn-next-key">key ›</button>
+      </div>
+      <div id="legend">
+        <span><i class="sw readable"></i>readable here</span>
+        <span><i class="sw partial"></i>partial / marginal</span>
+        <span><i class="sw blind"></i>blind run</span>
+        <span><i class="sw keyseg"></i>key segment</span>
+      </div>
+    </section>
+
+    <aside id="sidebar">
+      <div id="panel-routes" class="panel"></div>
+      <div id="panel-replay" class="panel hidden"></div>
+      <div id="panel-result" class="panel"></div>
+      <div id="panel-explain" class="panel"></div>
+      <div id="panel-tradeoff" class="panel hidden"></div>
+      <div id="panel-help" class="panel"></div>
+    </aside>
+  </main>
+</div>
+<script type="module" src="./main.js"></script>
+</body>
+</html>

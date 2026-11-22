@@ -1,0 +1,1307 @@
+{
+  "generatedAt": "2026-11-22T17:46:38.386Z",
+  "plan": [
+    {
+      "id": "cistern-roadside-sign",
+      "type": "spire",
+      "x": 16,
+      "z": -13,
+      "yawDeg": 180
+    },
+    {
+      "id": "ribbon@38,-11",
+      "type": "ribbon",
+      "x": 38,
+      "z": -11.330984070654068,
+      "yawDeg": -194.87874364184972
+    },
+    {
+      "id": "ribbon@-57,9",
+      "type": "ribbon",
+      "x": -57,
+      "z": 8.669015929345932,
+      "yawDeg": 143.04157093185475
+    },
+    {
+      "id": "ribbon@3,19",
+      "type": "ribbon",
+      "x": 3,
+      "z": 18.66901592934593,
+      "yawDeg": 32.50201485087026
+    },
+    {
+      "id": "ribbon@-27,4",
+      "type": "ribbon",
+      "x": -27,
+      "z": 3.6690159293459317,
+      "yawDeg": 151.40070119814393
+    },
+    {
+      "id": "gate@-77,34",
+      "type": "gate",
+      "x": -77,
+      "z": 33.66901592934593,
+      "yawDeg": 106.90070931769688
+    },
+    {
+      "id": "ribbon@33,14",
+      "type": "ribbon",
+      "x": 33,
+      "z": 13.669015929345932,
+      "yawDeg": 63.92499458356557
+    }
+  ],
+  "routes": {
+    "plaza-walk": {
+      "viewpoint": {
+        "mode": "free",
+        "lateralLimit": 1.8,
+        "panLimitDeg": 35
+      },
+      "coveredFraction": 0.986,
+      "longestBlindRunM": 0,
+      "keySegments": [
+        {
+          "label": "West approach",
+          "from": 0,
+          "to": 35.5,
+          "fraction": 1,
+          "pass": true
+        },
+        {
+          "label": "Cistern street",
+          "from": 35.5,
+          "to": 73.9,
+          "fraction": 1,
+          "pass": true
+        },
+        {
+          "label": "Meeting-house corner",
+          "from": 73.9,
+          "to": 112.4,
+          "fraction": 1,
+          "pass": true
+        },
+        {
+          "label": "North descent",
+          "from": 112.4,
+          "to": 147.9,
+          "fraction": 0.941,
+          "pass": true
+        }
+      ],
+      "firstLegibleByLandmark": {
+        "Old Mint Clock": 102,
+        "Glass Spire": 102,
+        "Market Ribbon": 90,
+        "Fountain Gate": 0
+      }
+    },
+    "tram-line": {
+      "viewpoint": {
+        "mode": "fixed",
+        "panLimitDeg": 10,
+        "lateralLimit": 0
+      },
+      "coveredFraction": 0.977,
+      "longestBlindRunM": 2,
+      "keySegments": [
+        {
+          "label": "Depot approach",
+          "from": 0,
+          "to": 41.7,
+          "fraction": 0.952,
+          "pass": true
+        },
+        {
+          "label": "Cistern west side",
+          "from": 41.7,
+          "to": 86.9,
+          "fraction": 0.957,
+          "pass": true
+        },
+        {
+          "label": "Mint bend",
+          "from": 86.9,
+          "to": 135.5,
+          "fraction": 1,
+          "pass": true
+        },
+        {
+          "label": "Terminus",
+          "from": 135.5,
+          "to": 173.7,
+          "fraction": 1,
+          "pass": true
+        }
+      ],
+      "firstLegibleByLandmark": {
+        "Old Mint Clock": 130,
+        "Glass Spire": null,
+        "Market Ribbon": 116,
+        "Fountain Gate": 0
+      }
+    }
+  },
+  "sharedSetpiece": {
+    "plaza-walk": {
+      "firstBlockedByCisternAtM": 0,
+      "firstRevealedAtM": 104,
+      "revealedButUnreadableReasons": null,
+      "firstReadableAtM": 102,
+      "blockedSamples": 52,
+      "reportedUnseen": false,
+      "profile": [
+        {
+          "s": 0,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 2,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 4,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 6,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 8,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 10,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 12,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 14,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 16,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 18,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 20,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 22,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 24,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 26,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 28,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 30,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 32,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 34,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 36,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 38,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 40,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 42,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 44,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 46,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 48,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 50,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 52,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 54,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 56,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 58,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 60,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 62,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 64,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 66,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 68,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 70,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 72,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 74,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 76,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 78,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 80,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 82,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 84,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 86,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 88,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 90,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 92,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 94,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 96,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 98,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 100,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 102,
+          "readable": true,
+          "blockedByCistern": true
+        },
+        {
+          "s": 104,
+          "readable": true,
+          "blockedByCistern": false
+        },
+        {
+          "s": 106,
+          "readable": true,
+          "blockedByCistern": false
+        },
+        {
+          "s": 108,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 110,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 112,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 114,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 116,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 118,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 120,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 122,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 124,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 126,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 128,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 130,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 132,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 134,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 136,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 138,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 140,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 142,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 144,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 146,
+          "readable": false,
+          "blockedByCistern": false
+        }
+      ]
+    },
+    "tram-line": {
+      "firstBlockedByCisternAtM": 0,
+      "firstRevealedAtM": 128,
+      "revealedButUnreadableReasons": [
+        "off-screen",
+        "small-area"
+      ],
+      "firstReadableAtM": null,
+      "blockedSamples": 64,
+      "reportedUnseen": true,
+      "profile": [
+        {
+          "s": 0,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 2,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 4,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 6,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 8,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 10,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 12,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 14,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 16,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 18,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 20,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 22,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 24,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 26,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 28,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 30,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 32,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 34,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 36,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 38,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 40,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 42,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 44,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 46,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 48,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 50,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 52,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 54,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 56,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 58,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 60,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 62,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 64,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 66,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 68,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 70,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 72,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 74,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 76,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 78,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 80,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 82,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 84,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 86,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 88,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 90,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 92,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 94,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 96,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 98,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 100,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 102,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 104,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 106,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 108,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 110,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 112,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 114,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 116,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 118,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 120,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 122,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 124,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 126,
+          "readable": false,
+          "blockedByCistern": true
+        },
+        {
+          "s": 128,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 130,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 132,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 134,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 136,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 138,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 140,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 142,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 144,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 146,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 148,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 150,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 152,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 154,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 156,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 158,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 160,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 162,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 164,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 166,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 168,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 170,
+          "readable": false,
+          "blockedByCistern": false
+        },
+        {
+          "s": 172,
+          "readable": false,
+          "blockedByCistern": false
+        }
+      ]
+    }
+  },
+  "tradeoff": {
+    "routeId": "plaza-walk",
+    "objects": [
+      "mutual-arch",
+      "mutual-spire"
+    ],
+    "window": {
+      "from": 0,
+      "to": 54,
+      "count": 28
+    },
+    "base": {
+      "fraction": 0.24324324324324326,
+      "windowFraction": 0,
+      "windowCovered": 0,
+      "windowSamples": 28,
+      "longestGap": 54,
+      "window": {
+        "from": 0,
+        "to": 54,
+        "length": 54
+      },
+      "keyPass": false
+    },
+    "migrate": {
+      "fraction": 0.2702702702702703,
+      "windowFraction": 0.5357142857142857,
+      "windowCovered": 15,
+      "windowSamples": 28,
+      "longestGap": 26,
+      "window": {
+        "from": 0,
+        "to": 54,
+        "length": 54
+      },
+      "landmark": {
+        "id": "mutual-spire",
+        "type": "spire",
+        "name": "Glass Spire",
+        "color": "#4fd1ff",
+        "position": {
+          "x": -23.72562633006071,
+          "y": 0,
+          "z": 19.646242019635736
+        },
+        "yaw": 1.658062789394613,
+        "sign": {
+          "w": 5,
+          "h": 3,
+          "yOffset": 8.5
+        },
+        "body": {
+          "w": 2.2,
+          "d": 2.2,
+          "h": 7.2
+        },
+        "historic": false,
+        "note": "Tall wayfinding spire; visible far down the street.",
+        "ignoreOccluderIds": []
+      },
+      "keyPass": true,
+      "delta": 0.5357142857142857
+    },
+    "observer": {
+      "available": true,
+      "score": -0.6567567567567567,
+      "lateral": -1.8,
+      "fraction": 0.24324324324324326,
+      "windowFraction": 0,
+      "windowCovered": 0,
+      "windowSamples": 28,
+      "longestGap": 54,
+      "window": {
+        "from": 0,
+        "to": 54,
+        "length": 54
+      }
+    },
+    "recommendation": "Prefer migrating the landmark: it recovers 54% of the contested window vs 0% for the observer nudge (currently 0%). Permanent, but a seated route cannot use the observer option at all."
+  },
+  "renderChecks": [
+    {
+      "routeId": "plaza-walk",
+      "frac": 0.18,
+      "s": 26,
+      "panDeg": 35,
+      "readableCount": 2,
+      "chosenLandmark": "ribbon@-57,9",
+      "measured": {
+        "readable": true,
+        "areaPx": 14831.743275487184,
+        "rawAreaPx": 14831.743275487184,
+        "onScreenAreaPx": 14831.743275487184,
+        "visibleFraction": 1,
+        "reasons": [],
+        "distance": 18.43630316600404
+      },
+      "rendered": {
+        "visiblePixels": 14765,
+        "projectedPixels": 14765
+      },
+      "file": "artifacts/verify/plaza-walk-18.png",
+      "visibleRatio": 1,
+      "projectedRatio": 1,
+      "renderedOcclusion": 1,
+      "agree": true
+    },
+    {
+      "routeId": "plaza-walk",
+      "frac": 0.42,
+      "s": 62,
+      "panDeg": 17.5,
+      "readableCount": 2,
+      "chosenLandmark": "ribbon@-27,4",
+      "measured": {
+        "readable": true,
+        "areaPx": 46570.34393523839,
+        "rawAreaPx": 46570.34393523839,
+        "onScreenAreaPx": 46570.34393523839,
+        "visibleFraction": 1,
+        "reasons": [],
+        "distance": 11.04438728278974
+      },
+      "rendered": {
+        "visiblePixels": 46629,
+        "projectedPixels": 46629
+      },
+      "file": "artifacts/verify/plaza-walk-42.png",
+      "visibleRatio": 1,
+      "projectedRatio": 1,
+      "renderedOcclusion": 1,
+      "agree": true
+    },
+    {
+      "routeId": "plaza-walk",
+      "frac": 0.66,
+      "s": 98,
+      "panDeg": -35,
+      "readableCount": 2,
+      "chosenLandmark": "ribbon@3,19",
+      "measured": {
+        "readable": true,
+        "areaPx": 51694.50270804433,
+        "rawAreaPx": 103608.76117930576,
+        "onScreenAreaPx": 51694.50270804433,
+        "visibleFraction": 1,
+        "reasons": [],
+        "distance": 11.425673142015098
+      },
+      "rendered": {
+        "visiblePixels": 51627,
+        "projectedPixels": 51627
+      },
+      "file": "artifacts/verify/plaza-walk-66.png",
+      "visibleRatio": 1,
+      "projectedRatio": 1,
+      "renderedOcclusion": 1,
+      "agree": true
+    },
+    {
+      "routeId": "plaza-walk",
+      "frac": 0.88,
+      "s": 130,
+      "panDeg": 35,
+      "readableCount": 2,
+      "chosenLandmark": "ribbon@38,-11",
+      "measured": {
+        "readable": true,
+        "areaPx": 14120.84272638015,
+        "rawAreaPx": 14120.84272638015,
+        "onScreenAreaPx": 14120.84272638015,
+        "visibleFraction": 1,
+        "reasons": [],
+        "distance": 19.226190991455667
+      },
+      "rendered": {
+        "visiblePixels": 14112,
+        "projectedPixels": 14112
+      },
+      "file": "artifacts/verify/plaza-walk-88.png",
+      "visibleRatio": 1,
+      "projectedRatio": 1,
+      "renderedOcclusion": 1,
+      "agree": true
+    },
+    {
+      "routeId": "tram-line",
+      "frac": 0.16,
+      "s": 28,
+      "panDeg": -10,
+      "readableCount": 1,
+      "chosenLandmark": "ribbon@-57,9",
+      "measured": {
+        "readable": true,
+        "areaPx": 6297.030517661522,
+        "rawAreaPx": 6297.030517661522,
+        "onScreenAreaPx": 6297.030517661522,
+        "visibleFraction": 1,
+        "reasons": [],
+        "distance": 34.08709753978275
+      },
+      "rendered": {
+        "visiblePixels": 6269,
+        "projectedPixels": 6269
+      },
+      "file": "artifacts/verify/tram-line-16.png",
+      "visibleRatio": 1,
+      "projectedRatio": 1,
+      "renderedOcclusion": 1,
+      "agree": true
+    },
+    {
+      "routeId": "tram-line",
+      "frac": 0.34,
+      "s": 60,
+      "panDeg": -10,
+      "readableCount": 2,
+      "chosenLandmark": "ribbon@-57,9",
+      "measured": {
+        "readable": true,
+        "areaPx": 80434.2391825236,
+        "rawAreaPx": 195337.19178208956,
+        "onScreenAreaPx": 80434.2391825236,
+        "visibleFraction": 1,
+        "reasons": [],
+        "distance": 7.911127951492388
+      },
+      "rendered": {
+        "visiblePixels": 80417,
+        "projectedPixels": 80417
+      },
+      "file": "artifacts/verify/tram-line-34.png",
+      "visibleRatio": 1,
+      "projectedRatio": 1,
+      "renderedOcclusion": 1,
+      "agree": true
+    },
+    {
+      "routeId": "tram-line",
+      "frac": 0.52,
+      "s": 90,
+      "panDeg": 10,
+      "readableCount": 2,
+      "chosenLandmark": "ribbon@-27,4",
+      "measured": {
+        "readable": true,
+        "areaPx": 52476.69312955882,
+        "rawAreaPx": 122055.8771275729,
+        "onScreenAreaPx": 52476.69312955882,
+        "visibleFraction": 1,
+        "reasons": [],
+        "distance": 10.959229506794317
+      },
+      "rendered": {
+        "visiblePixels": 52473,
+        "projectedPixels": 52473
+      },
+      "file": "artifacts/verify/tram-line-52.png",
+      "visibleRatio": 1,
+      "projectedRatio": 1,
+      "renderedOcclusion": 1,
+      "agree": true
+    },
+    {
+      "routeId": "tram-line",
+      "frac": 0.7,
+      "s": 122,
+      "panDeg": -10,
+      "readableCount": 4,
+      "chosenLandmark": "ribbon@3,19",
+      "measured": {
+        "readable": true,
+        "areaPx": 65139.32458722133,
+        "rawAreaPx": 302215.6744755262,
+        "onScreenAreaPx": 65139.32458722133,
+        "visibleFraction": 1,
+        "reasons": [],
+        "distance": 8.548379590270157
+      },
+      "rendered": {
+        "visiblePixels": 65214,
+        "projectedPixels": 65214
+      },
+      "file": "artifacts/verify/tram-line-70.png",
+      "visibleRatio": 1,
+      "projectedRatio": 1,
+      "renderedOcclusion": 1,
+      "agree": true
+    },
+    {
+      "routeId": "tram-line",
+      "frac": 0.9,
+      "s": 156,
+      "panDeg": 10,
+      "readableCount": 2,
+      "chosenLandmark": "ribbon@38,-11",
+      "measured": {
+        "readable": true,
+        "areaPx": 16510.44295706125,
+        "rawAreaPx": 16510.44295706125,
+        "onScreenAreaPx": 16510.44295706125,
+        "visibleFraction": 1,
+        "reasons": [],
+        "distance": 21.168963780989724
+      },
+      "rendered": {
+        "visiblePixels": 16491,
+        "projectedPixels": 16491
+      },
+      "file": "artifacts/verify/tram-line-90.png",
+      "visibleRatio": 1,
+      "projectedRatio": 1,
+      "renderedOcclusion": 1,
+      "agree": true
+    }
+  ],
+  "failures": [],
+  "lockedHistoric": {
+    "id": "old-mint-clock",
+    "position": {
+      "x": 41.8,
+      "z": -6
+    },
+    "yawDeg": 90,
+    "firstContours": {
+      "plaza-walk": 102,
+      "tram-line": 130
+    }
+  },
+  "pageErrors": [],
+  "pass": true
+}

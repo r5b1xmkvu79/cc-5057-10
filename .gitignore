@@ -23,3 +23,7 @@ __pycache__/
 *.log
 .env
 .env.*
+
+# Local Chromium support files for Linux arm64 verification
+/tools/debs/
+/tools/sysroot/

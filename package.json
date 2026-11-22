@@ -1,0 +1,30 @@
+{
+  "name": "harbor-quarter-guide-editor",
+  "version": "1.0.0",
+  "description": "Landmark placement & route-visibility editor",
+  "main": "index.js",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "verify": "node scripts/with-sysroot.mjs verify/verify.mjs",
+    "verify:ui": "node scripts/with-sysroot.mjs verify/ui-smoke.mjs",
+    "test": "node --test verify/kernel.test.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/r5b1xmkvu79/cc-5057-10.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/r5b1xmkvu79/cc-5057-10/issues"
+  },
+  "homepage": "https://github.com/r5b1xmkvu79/cc-5057-10#readme",
+  "dependencies": {
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.1"
+  },
+  "type": "module"
+}

@@ -1,0 +1,149 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Render harness</title>
+<style>html,body{margin:0;background:#000;overflow:hidden}#c{display:block}</style>
+<script type="importmap">
+{ "imports": { "three": "/node_modules/three/build/three.module.js", "three/addons/": "/node_modules/three/examples/jsm/" } }
+</script>
+</head>
+<body>
+<canvas id="c" width="1280" height="720"></canvas>
+<script type="module">
+// Headless render harness driven by verify/verify.mjs.
+//
+// It renders the *delivered* plan (passed in from Node, not re-solved) and
+// provides an independent rasterisation check: the white-sign mask is rendered
+// twice, once against black scenery and once with scenery removed. Comparing
+// those pixel counts to the kernel's analytic hull area is a genuine
+// render-vs-measurement test of projection and occlusion.
+
+import * as THREE from 'three';
+import { DISTRICT } from '/content/world.js';
+
+const W = 1280, H = 720;
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(W, H, false);
+
+// ---- visible frame (matches the editor's materials closely enough for review)
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0e14);
+scene.add(new THREE.HemisphereLight(0xbcd4ff, 0x1a1f28, 1.0));
+const sun = new THREE.DirectionalLight(0xfff2d8, 1.2); sun.position.set(-60, 120, 80); scene.add(sun);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: 0x1a222d, roughness: 1 }));
+ground.rotation.x = -Math.PI / 2; scene.add(ground);
+
+const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+const scenery = [];
+for (const b of DISTRICT.occluders) {
+  const w = b.max.x - b.min.x, h = b.max.y - b.min.y, d = b.max.z - b.min.z;
+  const color = b.id === 'cistern-block' ? 0x8a5a2b : b.id === 'old-mint' ? 0x5a4a1f : 0x39475a;
+  const m = new THREE.Mesh(boxGeo, new THREE.MeshStandardMaterial({ color, roughness: 0.9 }));
+  m.scale.set(w, h, d); m.position.set(b.min.x + w / 2, b.min.y + h / 2, b.min.z + d / 2);
+  scene.add(m); scenery.push({ b, m });
+}
+for (const p of DISTRICT.platforms) {
+  const w = p.max.x - p.min.x, h = p.max.y - p.min.y, d = p.max.z - p.min.z;
+  const m = new THREE.Mesh(boxGeo, new THREE.MeshStandardMaterial({ color: 0x2a3646, roughness: 1 }));
+  m.scale.set(w, h, d); m.position.set(p.min.x + w / 2, p.min.y + h / 2, p.min.z + d / 2);
+  scene.add(m);
+}
+
+const camera = new THREE.PerspectiveCamera(62, W / H, 0.1, 500);
+const landmarkGroups = new Map();
+const signMeshes = new Map();
+
+// ---- mask scenes -----------------------------------------------------------
+// White sign + black scenery, depth-tested: visible pixels = unoccluded pixels.
+const maskWithScenery = new THREE.Scene();
+maskWithScenery.background = new THREE.Color(0x000000);
+const maskClear = new THREE.Scene();
+maskClear.background = new THREE.Color(0x000000);
+for (const { b } of scenery) {
+  const w = b.max.x - b.min.x, h = b.max.y - b.min.y, d = b.max.z - b.min.z;
+  const m = new THREE.Mesh(boxGeo, new THREE.MeshBasicMaterial({ color: 0x000000 }));
+  m.scale.set(w, h, d); m.position.set(b.min.x + w / 2, b.min.y + h / 2, b.min.z + d / 2);
+  maskWithScenery.add(m);
+}
+const maskSign = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
+maskWithScenery.add(maskSign);
+const maskSignClear = maskSign.clone();
+maskClear.add(maskSignClear);
+
+let landmarks = [];
+
+function buildLandmarks(list) {
+  landmarks = list;
+  for (const g of landmarkGroups.values()) scene.remove(g);
+  landmarkGroups.clear(); signMeshes.clear();
+  for (const lm of list) {
+    const g = new THREE.Group();
+    g.position.set(lm.position.x, lm.position.y, lm.position.z);
+    g.rotation.y = lm.yaw;
+    if (!lm.historic) {
+      const body = new THREE.Mesh(
+        new THREE.CylinderGeometry(Math.min(lm.body.w, lm.body.d) / 2, Math.min(lm.body.w, lm.body.d) / 2 * 1.15, lm.body.h, 10),
+        new THREE.MeshStandardMaterial({ color: new THREE.Color(lm.color), roughness: 0.6 }),
+      );
+      body.position.y = lm.body.h / 2; g.add(body);
+    }
+    const sign = new THREE.Mesh(
+      new THREE.PlaneGeometry(lm.sign.w, lm.sign.h),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(lm.color), emissive: new THREE.Color(lm.color), emissiveIntensity: 0.85, side: THREE.DoubleSide }),
+    );
+    sign.position.y = lm.sign.yOffset; sign.rotation.y = Math.PI; sign.userData.landmarkId = lm.id;
+    g.add(sign); signMeshes.set(lm.id, sign);
+    scene.add(g); landmarkGroups.set(lm.id, g);
+  }
+}
+
+function aim(samp, pan) {
+  camera.position.set(samp.position.x, samp.position.y + samp.eyeHeight, samp.position.z);
+  camera.rotation.set(0, 0, 0);
+  camera.rotateY(samp.yaw + pan * Math.PI / 180);
+  camera.updateMatrixWorld(true);
+}
+
+function maskCount(samp, pan, lm, withScenery) {
+  const m = withScenery ? maskSign : maskSignClear;
+  m.scale.set(lm.sign.w, lm.sign.h, 1);
+  m.position.set(lm.position.x, lm.position.y + lm.sign.yOffset, lm.position.z);
+  m.rotation.set(0, lm.yaw + Math.PI, 0);
+  m.updateMatrixWorld(true);
+  aim(samp, pan);
+  const target = withScenery ? maskWithScenery : maskClear;
+  renderer.render(target, camera);
+  const gl = renderer.getContext();
+  const px = new Uint8Array(W * H * 4);
+  gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  let count = 0;
+  for (let i = 0; i < px.length; i += 4) if (px[i] > 60) count++;
+  return count;
+}
+
+window.__setPlan = (list) => { buildLandmarks(list); };
+
+window.__renderFrame = (samp, pan) => {
+  aim(samp, pan);
+  renderer.render(scene, camera);
+};
+
+window.__countLandmarkPixels = (samp, pan, lmId) => {
+  const lm = landmarks.find((l) => l.id === lmId);
+  if (!lm) return null;
+  const visible = maskCount(samp, pan, lm, true);
+  const projected = maskCount(samp, pan, lm, false);
+  // Restore the visual frame.
+  aim(samp, pan);
+  renderer.render(scene, camera);
+  return { visiblePixels: visible, projectedPixels: projected };
+};
+
+window.__landmarksNow = () => landmarks;
+window.__renderReady = true;
+</script>
+</body>
+</html>
