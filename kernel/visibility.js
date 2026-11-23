@@ -12,6 +12,10 @@ import {
   yawToDir, rayBlockedBy, hull2D, clipPolygonFrustum, polygonArea2D, clamp, vec,
 } from './geom.js';
 
+// Near-plane distance used by every frustum measurement; kept in one place so
+// the diagnostics sightline queries and the acceptance test cannot drift apart.
+export const NEAR_PLANE = 0.35;
+
 export const DEFAULT_THRESHOLDS = {
   minVisibleFraction: 0.55,     // sign surface unoccluded
   minVisibleAreaPx: 2600,       // effective on-screen area at reference res
@@ -143,12 +147,12 @@ export function measureLandmark(cam, landmark, occluders, thresholds = DEFAULT_T
     const d = sub(p, cam.position);
     return { x: dot(d, cam.right), y: dot(d, cam.up), z: dot(d, cam.forward) };
   });
-  const rawArea = camLocal.every((p) => p.z > 0.35)
+  const rawArea = camLocal.every((p) => p.z > NEAR_PLANE)
     ? polygonArea2D(camLocal.map((p) => ({ x: (p.x / p.z / cam.tanX * 0.5 + 0.5) * cam.width, y: (0.5 - p.y / p.z / cam.tanY * 0.5) * cam.height })))
     : 0;
   // Exact on-screen area: clip the panel polygon against the real frustum, then
   // project. This is what the GPU effectively sees, so it agrees with renders.
-  const clipped = clipPolygonFrustum(camLocal, cam.tanX, cam.tanY, 0.35);
+  const clipped = clipPolygonFrustum(camLocal, cam.tanX, cam.tanY, NEAR_PLANE);
   let onScreenArea = 0;
   if (clipped.length >= 3) {
     const proj = clipped.map((p) => ({
@@ -158,7 +162,7 @@ export function measureLandmark(cam, landmark, occluders, thresholds = DEFAULT_T
     onScreenArea = polygonArea2D(proj);
   }
   // If the panel is wholly behind the camera, there is nothing to measure.
-  if (camLocal.every((p) => p.z < 0.35)) return null;
+  if (camLocal.every((p) => p.z < NEAR_PLANE)) return null;
   const corners = cornerPts.map((p) => projectPoint(cam, p));
 
   // A landmark mounted on its own building (e.g. a clock on the Mint) must not
@@ -321,4 +325,166 @@ export function firstVisibleS(posesBySample, landmarks, measures) {
     }
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Diagnostic sightline queries. The acceptance test above only keeps vote
+// counts; evidence tracking needs the actual rays, hit distances and projected
+// polygons so a mismatch can be attributed to a named object or to the maths.
+// Every helper here uses the same camera/projection/ray path as measureLandmark
+// — the diagnostics never invent a second visibility model.
+
+// Single eye→target occlusion query against AABBs. Returns the nearest blocker
+// (with the entry distance and the 3D intersection point) or a free sightline.
+export function sightlineQuery(eye, target, occluders, { ignoreIds = [] } = {}) {
+  const skip = new Set(ignoreIds);
+  const boxes = occluders.filter((b) => !skip.has(b.id));
+  const d = sub(target, eye);
+  const length = len(d);
+  if (length < 1e-6) return { free: true, length, blocker: null, hitPoint: null };
+  const dir = mul(d, 1 / length);
+  const hit = rayBlockedBy(eye, dir, boxes, length - 0.02);
+  if (!hit) return { free: true, length, blocker: null, hitPoint: null };
+  return {
+    free: false,
+    length,
+    blocker: { id: hit.box.id ?? 'unknown', box: hit.box, distance: hit.t },
+    hitPoint: add(eye, mul(dir, hit.t)),
+    blockedFraction: clamp(hit.t / length, 0, 1),
+  };
+}
+
+// The panel's exact on-screen polygon after frustum clipping, in reference-frame
+// pixels. Empty array when the whole panel is behind the camera.
+export function projectedPanelPolygon(cam, landmark) {
+  const camLocal = signCorners(landmark).map((p) => {
+    const d = sub(p, cam.position);
+    return { x: dot(d, cam.right), y: dot(d, cam.up), z: dot(d, cam.forward) };
+  });
+  if (camLocal.every((p) => p.z < NEAR_PLANE)) return [];
+  const clipped = clipPolygonFrustum(camLocal, cam.tanX, cam.tanY, NEAR_PLANE);
+  if (clipped.length < 3) return [];
+  return clipped.map((p) => ({
+    x: (p.x / p.z / cam.tanX * 0.5 + 0.5) * cam.width,
+    y: (0.5 - p.y / p.z / cam.tanY * 0.5) * cam.height,
+  }));
+}
+
+// Conservative screen-space footprint of an AABB: the 2D convex hull of its
+// eight projected corners (points behind the camera are dropped). Used to test
+// whether a blocking volume actually covers the sign's pixels at all.
+export function projectedBoxPolygon(cam, box) {
+  const pts = [];
+  for (const x of [box.min.x, box.max.x]) {
+    for (const y of [box.min.y, box.max.y]) {
+      for (const z of [box.min.z, box.max.z]) {
+        const pr = projectPoint(cam, { x, y, z });
+        if (pr.inFront) pts.push({ x: pr.px, y: pr.py });
+      }
+    }
+  }
+  if (pts.length < 3) return [];
+  return convexHull2D(pts);
+}
+
+function convexHull2D(points) {
+  const pts = points.map((p) => [p.x, p.y]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross2 = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lower = [];
+  for (const p of pts) {
+    while (lower.length >= 2 && cross2(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+    lower.push(p);
+  }
+  const upper = [];
+  for (let i = pts.length - 1; i >= 0; i--) {
+    const p = pts[i];
+    while (upper.length >= 2 && cross2(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+    upper.push(p);
+  }
+  return lower.slice(0, -1).concat(upper.slice(0, -1)).map(([x, y]) => ({ x, y }));
+}
+
+// Separating-axis test for two convex polygons in pixel space.
+export function polygonsOverlap2D(a, b) {
+  if (a.length < 3 || b.length < 3) return false;
+  const axes = [];
+  for (const poly of [a, b]) {
+    for (let i = 0; i < poly.length; i++) {
+      const p = poly[i], q = poly[(i + 1) % poly.length];
+      const ex = q.x - p.x, ey = q.y - p.y;
+      const l = Math.hypot(ex, ey) || 1;
+      axes.push({ x: -ey / l, y: ex / l });
+    }
+  }
+  for (const ax of axes) {
+    let minA = Infinity, maxA = -Infinity, minB = Infinity, maxB = -Infinity;
+    for (const p of a) { const v = p.x * ax.x + p.y * ax.y; minA = Math.min(minA, v); maxA = Math.max(maxA, v); }
+    for (const p of b) { const v = p.x * ax.x + p.y * ax.y; minB = Math.min(minB, v); maxB = Math.max(maxB, v); }
+    if (maxA < minB || maxB < minA) return false;
+  }
+  return true;
+}
+
+// Per-sample sightline evidence for one landmark from one camera: every ray
+// carries its world endpoints, its projection and the named blocker it hits,
+// plus whether that blocker's projected volume truly covers the panel. The
+// `coversPanel` flag is the bounding-volume-error detector: an AABB vote with
+// no screen overlap cannot be hiding any sign pixel.
+export function landmarkSightlines(cam, landmark, occluders) {
+  const selfIds = new Set([`occluder:${landmark.id}`, ...(landmark.ignoreOccluderIds ?? [])]);
+  const blockers = occluders.filter((b) => !selfIds.has(b.id));
+  const panelPoly = projectedPanelPolygon(cam, landmark);
+  const samples = signSamples(landmark, 5);
+  return samples.map((s) => {
+    const proj = projectPoint(cam, s.point);
+    const q = sightlineQuery(cam.position, s.point, blockers);
+    let blockerPoly = null;
+    let coversPanel = false;
+    if (!q.free && q.blocker) {
+      blockerPoly = projectedBoxPolygon(cam, q.blocker.box);
+      coversPanel = panelPoly.length >= 3 && blockerPoly.length >= 3 && polygonsOverlap2D(panelPoly, blockerPoly);
+    }
+    return {
+      u: s.u, v: s.v,
+      world: s.point,
+      projection: proj.inFront
+        ? { x: proj.px, y: proj.py, nx: proj.nx, ny: proj.ny, depth: proj.depth, inside: Math.abs(proj.nx) <= 1 && Math.abs(proj.ny) <= 1 }
+        : { x: proj.px, y: proj.py, nx: proj.nx, ny: proj.ny, depth: proj.depth, inside: false, inFront: false },
+      free: q.free,
+      blocker: q.blocker,
+      hitPoint: q.hitPoint,
+      blockedFraction: q.blockedFraction ?? 0,
+      coversPanel,
+    };
+  });
+}
+
+// Merge a per-sample predicate (indexed by arc length s) into contiguous
+// intervals. Returns [{from, to, fromIndex, toIndex, value}].
+export function mergeIntervals(rows, predicate) {
+  const out = [];
+  let run = null;
+  for (let i = 0; i < rows.length; i++) {
+    const ok = predicate(rows[i], i);
+    if (ok && run === null) run = { fromIndex: i, from: rows[i].s };
+    if (!ok && run !== null) {
+      out.push({ ...run, toIndex: i - 1, to: rows[i - 1].s });
+      run = null;
+    }
+  }
+  if (run !== null) out.push({ ...run, toIndex: rows.length - 1, to: rows[rows.length - 1].s });
+  return out;
+}
+
+// Visible intervals of a landmark along a route: rows are {s, measurement?}
+// where a truthy measurement.readable means the guide is legible at that s.
+export function visibleIntervals(rows) {
+  return mergeIntervals(rows, (r) => !!r.measurement?.readable);
+}
+
+// Screen-area profile of a landmark along a route, even while it is unreadable
+// (the on-screen area may stay large behind a blocker — that is how a critical
+// occlusion looks different from a far/small landmark).
+export function screenAreaIntervals(rows, minAreaPx) {
+  return mergeIntervals(rows, (r) => (r.measurement?.onScreenAreaPx ?? 0) >= minAreaPx);
 }

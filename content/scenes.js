@@ -73,17 +73,71 @@ export const SCENES = {
       { type: 'spire', position: { x: -28, y: 0, z: -6 }, yaw: (3 * Math.PI) / 4, id: 'mutual-spire' },
     ],
     mutualRouteId: 'plaza-walk',
+    // Diagnostics ground truth. The navigator owns the walkable corridor
+    // (half-widths per arc-length window), the save points a player resumes
+    // from, and the decision forks the walker can commit to. The demo closure
+    // temporarily shuts one road so the diagnostics can re-walk from the save
+    // point and judge which repair is legal at the first guide-loss point.
+    diagnostics: {
+      corridors: {
+        'plaza-walk': {
+          // Free viewpoint: the full 1.8 m lateral allowance, narrowed on the
+          // cistern street where market stalls pinch the pavement.
+          widths: [
+            { from: 0, to: 147.9, halfWidth: 1.8 },
+            { from: 60, to: 96, halfWidth: 1.0 },
+          ],
+        },
+        'tram-line': {
+          // Seated passengers: the corridor centreline is the only legal eye.
+          widths: [{ from: 0, to: 173.7, halfWidth: 0 }],
+        },
+      },
+      savePoints: {
+        'plaza-walk': { id: 'plaza-save-west', s: 24, label: 'West archway save point' },
+        'tram-line': { id: 'tram-depot-save', s: 36, label: 'Depot stop save point' },
+      },
+      forks: {
+        'plaza-walk': [
+          { id: 'fork-cistern-north', s: 96, label: 'North lane around the cistern' },
+          { id: 'fork-quarry-steps', s: 132, label: 'Quarry steps branch' },
+        ],
+        'tram-line': [
+          { id: 'fork-mint-bend', s: 144, label: 'Mint bend switch' },
+        ],
+      },
+      // A temporary road closure, authored per route. The closed arc is refused
+      // by the corridor; the walker resumes at the save point and continues on
+      // foot through whatever remains reachable.
+      demoClosures: {
+        'plaza-walk': {
+          id: 'closure-cistern-street',
+          from: 72, to: 90,
+          reason: 'Utility works close the cistern street pavement',
+        },
+        'tram-line': {
+          id: 'closure-depot-approach',
+          from: 60, to: 78,
+          reason: 'Tram track replacement closes the depot approach',
+        },
+      },
+    },
   },
 };
 
 export function materializeScene(scene, sampleRoute) {
   const routesById = {};
   const routes = [];
+  const diag = scene.diagnostics ?? { corridors: {}, savePoints: {}, forks: {}, demoClosures: {} };
   for (const spec of scene.routes) {
     const { samples, length } = sampleRoute(spec, 2.0);
     const route = {
       id: spec.id, name: spec.name, samples, length,
       eyeHeight: spec.eyeHeight, viewpoint: spec.viewpoint, points: spec.points,
+      corridor: diag.corridors[spec.id] ?? { widths: [] },
+      savePoint: diag.savePoints[spec.id] ?? null,
+      forks: diag.forks[spec.id] ?? [],
+      demoClosure: diag.demoClosures[spec.id] ?? null,
     };
     routes.push(route);
     routesById[route.id] = route;
@@ -101,5 +155,5 @@ export function materializeScene(scene, sampleRoute) {
       });
     }
   }
-  return { routes, routesById, keySegments };
+  return { routes, routesById, keySegments, diagnostics: diag };
 }

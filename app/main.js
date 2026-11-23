@@ -6,14 +6,20 @@ import * as THREE from 'three';
 import { Viewport, REF_W, REF_H } from './viewport.js';
 import { DISTRICT, LANDMARK_CATALOG } from '../content/world.js';
 import { SCENES, materializeScene } from '../content/scenes.js';
-import { sampleRoute, makeCamera, measureLandmark, projectPoint, signCenter, signCorners, signBasis, DEFAULT_THRESHOLDS } from '../kernel/visibility.js';
+import { sampleRoute, makeCamera, measureLandmark, projectPoint, signCenter, signCorners, signBasis, landmarkSightlines, DEFAULT_THRESHOLDS } from '../kernel/visibility.js';
 import {
   solvePlacement, landmarkFromCatalog, evaluatePlan, compareTradeoff,
   landmarkOccluderBox, withLandmarkOccluders, groundHeight,
 } from '../kernel/placement.js';
+import {
+  makeCorridor, runEvidenceChain, decideRepair, locateMismatch,
+  counterfactualReplay, splitRouteAtSightlines, boundingVolumeErrors,
+  sightlineIntersections, DEFAULT_BUDGET,
+} from '../kernel/diagnostics.js';
 
 const DEG = Math.PI / 180;
 const $ = (sel) => document.querySelector(sel);
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 const state = {
   sceneId: 'harbor-quarter',
@@ -32,6 +38,15 @@ const state = {
   replay: { routeId: 'plaza-walk', s: 0, playing: false, lastT: 0 },
   tradeoff: null,
   solveMs: 0,
+  diagnostics: {
+    routeId: 'plaza-walk',
+    landmarkId: null,
+    closureOn: false,
+    s: 0,
+    chains: {},
+    decision: null,
+    budget: DEFAULT_BUDGET,
+  },
 };
 
 const overlayCanvas = document.getElementById('measure-overlay');
@@ -81,8 +96,19 @@ async function boot() {
   setMode('edit');
   renderAll();
   // Expose for automated UI verification (the verifier drives these).
-  window.__editor = { state, measureLandmark, makeCamera, projectPoint, evaluatePlan, compareTradeoff, setMode, selectLandmark, runSolve, moveLandmark, refreshEvaluation, viewport, camAt, eyeAt };
+  window.__editor = {
+    state, measureLandmark, makeCamera, projectPoint, evaluatePlan, compareTradeoff,
+    setMode, selectLandmark, runSolve, moveLandmark, refreshEvaluation, viewport, camAt, eyeAt,
+    runDiagnostics, selectDiagnosticsLandmark, toggleClosure, setDiagnosticsS, diagnostics: diagnosticsApi(),
+  };
   window.__editorReady = true;
+}
+
+function diagnosticsApi() {
+  return {
+    makeCorridor, runEvidenceChain, decideRepair, locateMismatch,
+    counterfactualReplay, splitRouteAtSightlines, boundingVolumeErrors, sightlineIntersections,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -152,6 +178,7 @@ function renderAll() {
   renderLandmarkPanel();
   renderResultPanel();
   renderTradeoffPanel();
+  renderDiagnosticsPanel();
   renderHelpPanelSafe();
   viewport.buildLandmarks(state.landmarks, state.selectedId, { onDrag: onLandmarkDrag });
 }
@@ -474,17 +501,19 @@ function setMode(mode) {
   state.mode = mode;
   document.querySelectorAll('.modes button').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
   $('#replay-bar').classList.toggle('hidden', mode !== 'replay');
+  $('#diag-bar').classList.toggle('hidden', mode !== 'diagnostics');
   $('#panel-replay').classList.toggle('hidden', mode !== 'replay');
   $('#panel-tradeoff').classList.toggle('hidden', mode !== 'tradeoff');
-  // Trade-off is a focused mode: hide the general panels so the comparison is
-  // the first thing on screen.
+  $('#panel-diagnostics').classList.toggle('hidden', mode !== 'diagnostics');
+  // Trade-off and diagnostics are focused modes: hide the general panels so
+  // the comparison/evidence is the first thing on screen.
   for (const id of ['#panel-routes', '#panel-result', '#panel-explain', '#panel-help']) {
-    $(id).classList.toggle('hidden', mode === 'tradeoff');
+    $(id).classList.toggle('hidden', mode === 'tradeoff' || mode === 'diagnostics');
   }
   viewport.setMode(mode);
   // The "at this point" measurement HUD belongs to the passenger replay only;
   // leaving the last replay reading on screen in edit or trade-off mode is stale.
-  $('#hud-measure').style.display = mode === 'replay' ? '' : 'none';
+  $('#hud-measure').style.display = (mode === 'replay' || mode === 'diagnostics') ? '' : 'none';
   if (mode === 'replay') {
     if (state.replay.routeId && !state.routesById[state.replay.routeId]) state.replay.routeId = state.routes[0].id;
     enterReplay();
@@ -493,7 +522,10 @@ function setMode(mode) {
     renderTradeoffPanel();
     highlightTradeoffPair();
     updateBadge();
+  } else if (mode === 'diagnostics') {
+    enterDiagnostics();
   } else {
+    viewport.clearDiag();
     updateBadge();
   }
   renderAll();
@@ -507,6 +539,9 @@ function updateBadge() {
     el.textContent = `${r.name} — ${vp}`;
   } else if (state.mode === 'tradeoff') {
     el.textContent = 'Trade-off: migrate landmark vs. adjust observer';
+  } else if (state.mode === 'diagnostics') {
+    const r = currentDiagnosticsRoute();
+    el.textContent = `Diagnostics — ${r.name}${state.diagnostics.closureOn ? ' · road closed' : ''}`;
   } else {
     el.textContent = 'Editor · drag landmarks · orbit with right mouse';
   }
@@ -745,6 +780,318 @@ function applyObserverOverride() {
 }
 
 // ---------------------------------------------------------------------------
+// Diagnostics mode
+//
+// The graphical entry point for the visibility-mismatch work. Every number is
+// computed by kernel/diagnostics.js on the same reference frame as the editor;
+// the viewport draws the navigator corridor, the closed road, the save point
+// and forks, and overlays the real projection polygon + per-ray sightlines.
+
+function diagnosticsOccluders() {
+  return withLandmarkOccluders(DISTRICT.occluders, state.landmarks);
+}
+
+function currentDiagnosticsRoute() {
+  return state.routesById[state.diagnostics.routeId] ?? state.routes[0];
+}
+
+function currentDiagnosticsCorridor() {
+  const route = currentDiagnosticsRoute();
+  return makeCorridor(route, state.diagnostics.closureOn && route.demoClosure
+    ? { closures: [route.demoClosure] }
+    : {});
+}
+
+// Re-run every evidence chain for the chosen route. Deterministic by
+// construction: re-running with no edits returns the same fingerprints.
+function runDiagnostics() {
+  const route = currentDiagnosticsRoute();
+  const corridor = currentDiagnosticsCorridor();
+  const occ = diagnosticsOccluders();
+  const chains = {};
+  for (const lm of state.landmarks) {
+    chains[lm.id] = runEvidenceChain({
+      route, corridor, landmark: lm, occluders: occ, budget: state.diagnostics.budget,
+    });
+  }
+  state.diagnostics.chains = chains;
+  if (!state.diagnostics.landmarkId || !chains[state.diagnostics.landmarkId]) {
+    state.diagnostics.landmarkId = state.landmarks.find((l) => l.id === 'mutual-spire')?.id
+      ?? state.landmarks[0]?.id ?? null;
+  }
+  const target = state.landmarks.find((l) => l.id === state.diagnostics.landmarkId);
+  state.diagnostics.decision = target ? decideRepair({
+    route, corridor, landmark: target, occluders: occ,
+    savePoint: route.savePoint,
+    closure: state.diagnostics.closureOn ? route.demoClosure : null,
+    forks: route.forks, budget: state.diagnostics.budget,
+  }) : null;
+  state.diagnostics.s = Math.min(state.diagnostics.s, route.length);
+  return state.diagnostics;
+}
+
+function enterDiagnostics() {
+  runDiagnostics();
+  const route = currentDiagnosticsRoute();
+  const corridor = currentDiagnosticsCorridor();
+  viewport.drawCorridor(route, corridor, {
+    closure: state.diagnostics.closureOn ? route.demoClosure : null,
+    savePoint: route.savePoint, forks: route.forks,
+  });
+  syncDiagnosticsUI();
+  updateDiagnosticsPose();
+  viewport.onOverlay(() => drawDiagnosticsOverlay());
+}
+
+function selectDiagnosticsLandmark(id) {
+  state.diagnostics.landmarkId = id;
+  runDiagnostics();
+  const route = currentDiagnosticsRoute();
+  viewport.drawCorridor(route, currentDiagnosticsCorridor(), {
+    closure: state.diagnostics.closureOn ? route.demoClosure : null,
+    savePoint: route.savePoint, forks: route.forks,
+  });
+  renderDiagnosticsPanel();
+  updateDiagnosticsPose();
+}
+
+function toggleClosure(on) {
+  state.diagnostics.closureOn = on;
+  enterDiagnostics();
+  renderDiagnosticsPanel();
+}
+
+function setDiagnosticsS(s) {
+  const route = currentDiagnosticsRoute();
+  state.diagnostics.s = clamp(s, 0, route.length);
+  syncDiagnosticsUI();
+  updateDiagnosticsPose();
+}
+
+function syncDiagnosticsUI() {
+  const route = currentDiagnosticsRoute();
+  const slider = $('#diag-slider');
+  if (slider) {
+    slider.max = String(Math.round(route.length * 10));
+    slider.value = String(Math.round(state.diagnostics.s * 10));
+  }
+  const readout = $('#diag-readout');
+  if (readout) readout.textContent = `${state.diagnostics.s.toFixed(1)} m`;
+}
+
+function nearestRouteSample(route, s) {
+  return route.samples.reduce((a, b) => (Math.abs(b.s - s) < Math.abs(a.s - s) ? b : a), route.samples[0]);
+}
+
+// Move the passenger camera to the scrubbed arc position and overlay the
+// measured projection + sightlines of the selected landmark.
+function updateDiagnosticsPose() {
+  const route = currentDiagnosticsRoute();
+  const corridor = currentDiagnosticsCorridor();
+  const sample = nearestRouteSample(route, state.diagnostics.s);
+  const lm = state.landmarks.find((l) => l.id === state.diagnostics.landmarkId);
+  const badge = $('#diag-badge');
+  if (!lm) { if (badge) badge.textContent = 'no landmark'; return; }
+
+  const gate = corridor.sampleAllowed(sample);
+  const occ = diagnosticsOccluders();
+  const cam = makeCamera({
+    position: { x: sample.position.x, y: sample.position.y + sample.eyeHeight, z: sample.position.z },
+    yaw: sample.yaw, fovYDeg: viewport.replayCam?.fov ?? 62,
+    aspect: REF_W / REF_H, width: REF_W, height: REF_H,
+  });
+  viewport.setReplayCamera({
+    position: { x: sample.position.x, y: sample.position.y + sample.eyeHeight, z: sample.position.z },
+    yaw: sample.yaw, fovYDeg: viewport.replayCam?.fov ?? 62,
+  });
+
+  if (!gate.allowed) {
+    if (badge) {
+      badge.className = 'diag-badge closed';
+      badge.textContent = `road closed · ${gate.closure.reason ?? gate.closure.id}`;
+    }
+    viewport.drawDiagnosticsOverlay({ cam, landmark: null, measurement: null, sightlines: null });
+    updateDiagHud(null, sample, gate.closure);
+    return;
+  }
+  const measurement = measureLandmark(cam, lm, occ, DEFAULT_THRESHOLDS);
+  const sightlines = landmarkSightlines(cam, lm, occ);
+  const chain = state.diagnostics.chains[lm.id];
+  const interval = containingInterval(chain, sample.s);
+  const reason = measurement.readable
+    ? 'readable'
+    : (measurement.reasons.join(', ') || 'not readable');
+  if (badge) {
+    badge.className = `diag-badge ${measurement.readable ? 'ok' : 'bad'}`;
+    badge.textContent = measurement.readable ? 'legible guide' : reason;
+  }
+  viewport.drawDiagnosticsOverlay({
+    cam, landmark: lm, measurement, sightlines, reason,
+    intervalLabel: interval ? `${interval.from.toFixed(0)}–${interval.to.toFixed(0)} m` : 'outside a visible interval',
+  });
+  updateDiagHud({ lm, measurement, sightlines, chain, sample, interval }, sample, null);
+}
+
+function containingInterval(chain, s) {
+  if (!chain) return null;
+  return chain.intervals.visible.find((iv) => s >= iv.from - 1e-9 && s <= iv.to + 1e-9) ?? null;
+}
+
+function updateDiagHud(data, sample, closure) {
+  const hud = $('#hud-measure');
+  if (closure) {
+    hud.innerHTML = `<h4>At ${sample.s.toFixed(1)} m</h4>
+      <div class="row"><span class="bad">Corridor closed</span><span>${esc(closure.id)}</span></div>
+      <div class="row"><span>${esc(closure.reason ?? 'temporary closure')}</span></div>
+      <div class="row"><span class="hint">The navigator corridor refuses this arc; no visibility is fabricated here.</span></div>`;
+    return;
+  }
+  if (!data?.measurement) { hud.innerHTML = '<h4>Diagnostics</h4><div class="row"><span>No measurement.</span></div>'; return; }
+  const { measurement: m, lm, interval, chain } = data;
+  const blockers = m.blockerVotes ? Object.entries(m.blockerVotes).map(([id, n]) => `${id}×${n}`).join(', ') : '';
+  hud.innerHTML = `
+    <h4>${esc(lm.name)} — evidence at ${sample.s.toFixed(1)} m</h4>
+    <div class="row"><span>Projected area</span><span>${Math.round(m.visibleAreaPx)} px² (${(m.areaFraction * 100).toFixed(1)}% frame)</span></div>
+    <div class="row"><span>On-screen area</span><span>${Math.round(m.onScreenAreaPx)} px²</span></div>
+    <div class="row"><span>Unoccluded</span><span>${(m.visibleFraction * 100).toFixed(0)}%</span></div>
+    <div class="row"><span>Angular height</span><span>${m.angularHeightDeg.toFixed(2)}°</span></div>
+    <div class="row"><span>Distance</span><span>${m.distance.toFixed(1)} m</span></div>
+    <div class="row"><span>Blocker votes</span><span>${esc(blockers || 'none')}</span></div>
+    <div class="row"><span>Visible interval</span><span>${interval ? `${interval.from.toFixed(1)}–${interval.to.toFixed(1)} m` : '—'}</span></div>
+    <div class="row"><span>Evidence fingerprint</span><span>${chain?.fingerprint ?? '—'}</span></div>
+    <div class="row"><span>Verdict</span><span class="${m.readable ? 'ok' : 'bad'}">${m.readable ? 'READABLE' : esc(m.reasons.join(', ') || 'not readable')}</span></div>`;
+}
+
+function drawDiagnosticsOverlay() {
+  if (state.mode !== 'diagnostics') return;
+  updateDiagnosticsPose();
+}
+
+function renderDiagnosticsPanel() {
+  const el = $('#panel-diagnostics');
+  if (!el) return;
+  const route = currentDiagnosticsRoute();
+  const d = state.diagnostics;
+  const chain = d.chains[d.landmarkId];
+  const lm = state.landmarks.find((l) => l.id === d.landmarkId);
+
+  const routeButtons = state.routes.map((r) =>
+    `<button data-diag-route="${r.id}" class="${r.id === d.routeId ? 'primary' : ''}">${esc(r.name)}</button>`).join('');
+  const lmOptions = state.landmarks.map((l) =>
+    `<option value="${esc(l.id)}" ${l.id === d.landmarkId ? 'selected' : ''}>${esc(l.name)}</option>`).join('');
+
+  const corridorNow = currentDiagnosticsCorridor();
+  const chainCards = state.landmarks.map((l) => {
+    const c = d.chains[l.id];
+    if (!c) return '';
+    const sel = l.id === d.landmarkId ? 'selected' : '';
+    // One cell per route sample: closed samples never enter the tracker rows,
+    // so the corridor gate is applied here to keep the strip aligned with s.
+    const rowByS = new Map(c.tracker.rows.map((r) => [Number(r.s.toFixed(4)), r]));
+    const strip = route.samples.map((smp) => {
+      const gate = corridorNow.sampleAllowed(smp);
+      if (!gate.allowed) {
+        return `<div class="cell closed" title="${smp.s.toFixed(1)} m · closed (${esc(gate.closure.id)})"></div>`;
+      }
+      const r = rowByS.get(Number(smp.s.toFixed(4)));
+      if (!r) return '<div class="cell" title="no evidence"></div>';
+      const cls = r.readable ? 'vis' : (r.measurement?.onScreenAreaPx >= DEFAULT_THRESHOLDS.minVisibleAreaPx ? 'area' : '');
+      return `<div class="cell ${cls}" title="${r.s.toFixed(1)} m · ${r.failure ?? 'readable'}"></div>`;
+    }).join('');
+    const closedCells = c.tracker.closedSamples.length
+      ? `<div class="hint">closed samples: ${c.tracker.closedSamples.length} (${esc(c.tracker.closedSamples[0].closureId)})</div>` : '';
+    return `<div class="diag-chain ${sel}" data-diag-lm="${esc(l.id)}" style="cursor:pointer">
+      <div class="dc-head">
+        <span class="dc-name">${esc(l.name)}</span>
+        <span class="dc-fp">fp ${c.fingerprint}</span>
+      </div>
+      <div class="diag-strip">${strip}</div>
+      <div class="hint">visible ${c.intervals.visible.length} interval(s) · ${c.mismatches.length} mismatch(es) · evidence ${c.logCost.fullEvidenceRecords}/${c.logCost.samples} samples</div>
+      ${closedCells}
+    </div>`;
+  }).join('');
+
+  const mismatchList = chain ? chain.mismatches.map((mm) => `
+    <div class="diag-mm ${esc(mm.cause)}">
+      <div class="mm-stage">${esc(mm.kind)} · ${esc(mm.stage)} @ ${mm.atS.toFixed(1)} m</div>
+      <div><strong>${esc(mm.cause)}</strong> — ${esc(mm.measured.reasons.join(', ') || mm.failure || '')}</div>
+      <div class="hint">area ${Math.round(mm.measured.visibleAreaPx)} px² · on-screen ${Math.round(mm.measured.onScreenAreaPx)} px² · angular ${mm.measured.angularHeightDeg.toFixed(2)}° · ${mm.measured.distance.toFixed(1)} m</div>
+      ${mm.blockers.length ? `<div class="mm-blockers">blocker: ${mm.blockers.map((b) => `${esc(b.id)} (${b.rays} rays, ${b.coveringRays} cover panel)`).join('; ')}</div>` : ''}
+      ${mm.render?.disagrees ? `<div class="diag-anomaly">render disagrees: kernel ${mm.render.kernelVisiblePx} px vs rendered ${mm.render.renderedVisiblePx} px</div>` : ''}
+    </div>`).join('') : '';
+
+  const bvErrors = chain ? boundingVolumeErrors(chain) : [];
+  const decision = d.decision;
+  const recCard = decision ? `
+    <div class="diag-rec ${esc(decision.recommendation)}">
+      <h4>Boundary decision · ${esc(decision.recommendation)}</h4>
+      <div class="hint" style="margin-bottom:6px">${esc(decision.boundary)}</div>
+      <div class="diag-kv">
+        <span class="k">save point</span><span>${decision.savePointS.toFixed(1)} m</span>
+        <span class="k">first loss</span><span>${decision.firstLossS === null ? 'none' : decision.firstLossS.toFixed(1) + ' m'}</span>
+        <span class="k">fork entered</span><span>${decision.forkEntered ? esc(decision.forkEntered.id) : 'none'}</span>
+        <span class="k">root occluder</span><span>${esc(decision.counterfactual?.rootOccluder ?? '—')}</span>
+        <span class="k">Scheme A move</span><span>${decision.move?.feasible ? `feasible (Δ ${(decision.move.best.delta * 100).toFixed(0)} pts)` : 'not available'}</span>
+        <span class="k">Scheme B node</span><span>${decision.node?.feasible ? `feasible (Δ ${(decision.node.best.delta * 100).toFixed(0)} pts)` : esc(decision.node?.reason ?? 'not available')}</span>
+      </div>
+      ${decision.split ? `<h4 style="margin-top:8px">Sightline split — ${decision.split.segments.length} segment(s), ${decision.split.nodesNeeded} new guide node(s)</h4>
+        ${decision.split.segments.map((g) => `<div class="diag-seg"><span>${g.from.toFixed(0)}–${g.to.toFixed(0)} m</span><span class="${g.needsGuideNode ? 'diag-anomaly' : 'pass'}">${(g.fraction * 100).toFixed(0)}% covered${g.needsGuideNode ? ` · ${esc(g.dominantFailure ?? 'no guide')}` : ''}</span></div>`).join('')}` : ''}
+    </div>` : '';
+
+  el.innerHTML = `
+    <h2>Visibility diagnostics</h2>
+    <div class="diag-controls">
+      <div class="btn-row">${routeButtons}</div>
+      <label>Landmark
+        <select id="diag-lm-select">${lmOptions}</select>
+      </label>
+      <label class="diag-toggle">
+        <input type="checkbox" id="diag-closure" ${d.closureOn ? 'checked' : ''} />
+        apply temporary road closure (resume from save point)
+      </label>
+      ${route.demoClosure ? `<div class="hint">Closure arc ${route.demoClosure.from.toFixed(0)}–${route.demoClosure.to.toFixed(0)} m: ${esc(route.demoClosure.reason)}</div>` : ''}
+    </div>
+    <h3>Evidence chains</h3>
+    <div class="diag-legend">
+      <span><i style="background:#2f8f57"></i>readable</span>
+      <span><i style="background:#8a6d22"></i>on-screen but below area gate</span>
+      <span><i style="background:#23303f"></i>not legible</span>
+      <span><i style="background:#463a6b"></i>closed arc</span>
+    </div>
+    ${chainCards || '<div class="empty">No evidence yet.</div>'}
+    ${bvErrors.length ? `<div class="note">Bounding-volume error suspected: ${bvErrors.map((e) => `${esc(e.blockerId)} @${e.s.toFixed(0)}m`).join(', ')}</div>` : ''}
+    <h3>Mismatches with evidence</h3>
+    ${mismatchList || '<div class="hint">No visibility mismatch on this chain.</div>'}
+    ${recCard}
+    <div class="epistemic" style="margin-top:10px">
+      Each chain is a deterministic evidence record (projection, per-ray occlusion, route samples).
+      Re-running without edits yields the same fingerprint; an occlusion mismatch always names the
+      blocker that won the rays, so the tracker cannot raise a phantom report.
+    </div>`;
+
+  el.querySelectorAll('[data-diag-route]').forEach((b) => b.addEventListener('click', () => {
+    state.diagnostics.routeId = b.dataset.diagRoute;
+    state.diagnostics.s = 0;
+    enterDiagnostics(); renderDiagnosticsPanel();
+  }));
+  el.querySelectorAll('[data-diag-lm]').forEach((card) => card.addEventListener('click', () => {
+    selectDiagnosticsLandmark(card.dataset.diagLm);
+  }));
+  el.querySelector('#diag-lm-select')?.addEventListener('change', (e) => {
+    selectDiagnosticsLandmark(e.target.value);
+  });
+  el.querySelector('#diag-closure')?.addEventListener('change', (e) => {
+    toggleClosure(e.target.checked);
+  });
+}
+
+function wireDiagnosticsBar() {
+  $('#diag-slider')?.addEventListener('input', (e) => {
+    setDiagnosticsS(Number(e.target.value) / 10);
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Wire UI
 
 function wireUI() {
@@ -774,6 +1121,7 @@ function wireUI() {
     if (e.key === 'ArrowLeft') { state.replay.s = Math.max(0, state.replay.s - 1); updateReplayPose(); }
   });
   viewport.onOverlay(() => { if (state.mode === 'replay') drawReplayOverlay(); });
+  wireDiagnosticsBar();
 }
 
 function jumpKey(dir) {

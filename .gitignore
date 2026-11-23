@@ -27,3 +27,6 @@ __pycache__/
 # Local Chromium support files for Linux arm64 verification
 /tools/debs/
 /tools/sysroot/
+
+# Batch diagnostics output (npm run diagnose -- --out artifacts/diag)
+/artifacts/diag/

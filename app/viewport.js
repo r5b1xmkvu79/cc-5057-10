@@ -117,10 +117,13 @@ export class Viewport {
   setMode(mode) {
     this.mode = mode;
     this.controls.enabled = mode === 'edit';
-    this.overlay.style.display = mode === 'replay' ? 'block' : 'none';
+    this.overlay.style.display = (mode === 'replay' || mode === 'diagnostics') ? 'block' : 'none';
     // Billboard labels belong to the diorama, not to a passenger's-eye view.
-    this.scene.traverse((o) => { if (o.userData?.isLabel) o.visible = mode !== 'replay'; });
-    if (mode !== 'replay') this._clearOverlay();
+    // Diagnostics keeps its own corridor labels (save point, forks, closures).
+    this.scene.traverse((o) => {
+      if (o.userData?.isLabel) o.visible = !(mode === 'replay' || (mode === 'diagnostics' && !this.diagGroup?.children.includes(o)));
+    });
+    if (mode !== 'replay' && mode !== 'diagnostics') this._clearOverlay();
   }
 
   buildWorld(district) {
@@ -424,7 +427,7 @@ export class Viewport {
   animate() {
     requestAnimationFrame(this.animate);
     if (this.mode === 'edit') this.controls.update();
-    if (this.mode === 'replay') {
+    if (this.mode === 'replay' || this.mode === 'diagnostics') {
       // Render the 16:9 passenger frame into the letterboxed rect, with black
       // bars outside it, so the view matches the 1280x720 reference measurement.
       const R = this.viewRect ?? { x: 0, y: 0, w: this.vw, h: this.vh };
@@ -441,6 +444,174 @@ export class Viewport {
   }
 
   onOverlay(fn) { this._overlayFn = fn; }
+
+  // -------------------------------------------------------------------------
+  // Diagnostics overlays: the navigator corridor, a closed road arc, forks and
+  // the save point. All are drawn from data the kernel already measured — the
+  // editor never invents a second walkable surface.
+
+  drawCorridor(route, corridor, { closure = null, savePoint = null, forks = [] } = {}) {
+    const group = this.diagGroup ??= new THREE.Group();
+    group.clear();
+    const halfAt = (s) => corridor.halfWidthAt(s);
+    const closed = (s) => (closure && s >= closure.from - 1e-9 && s <= closure.to + 1e-9);
+    const ribbon = (predicate, color, opacity, y = 0.05) => {
+      for (let i = 0; i < route.samples.length - 1; i++) {
+        const a = route.samples[i], b = route.samples[i + 1];
+        if (!predicate(a.s)) continue;
+        const ra = norm(new THREE.Vector3().crossVectors(
+          new THREE.Vector3(a.tangent.x, 0, a.tangent.z), new THREE.Vector3(0, 1, 0)));
+        const rb = norm(new THREE.Vector3().crossVectors(
+          new THREE.Vector3(b.tangent.x, 0, b.tangent.z), new THREE.Vector3(0, 1, 0)));
+        const wa = halfAt(a.s), wb = halfAt(b.s);
+        const pts = [
+          new THREE.Vector3(a.position.x + ra.x * wa, y, a.position.z + ra.z * wa),
+          new THREE.Vector3(b.position.x + rb.x * wb, y, b.position.z + rb.z * wb),
+          new THREE.Vector3(b.position.x - rb.x * wb, y, b.position.z - rb.z * wb),
+          new THREE.Vector3(a.position.x - ra.x * wa, y, a.position.z - ra.z * wa),
+        ];
+        const geo = new THREE.BufferGeometry().setFromPoints(pts);
+        geo.setIndex([0, 1, 2, 0, 2, 3]);
+        geo.computeVertexNormals();
+        const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false }));
+        group.add(mesh);
+      }
+    };
+    ribbon((s) => !closed(s), 0x4fd1ff, 0.10);
+    if (closure) ribbon((s) => closed(s), 0xf87171, 0.32, 0.07);
+    // Closure barricades at both ends of the closed arc.
+    if (closure) {
+      for (const s of [closure.from, closure.to]) {
+        const smp = route.samples.reduce((a, b) => (Math.abs(b.s - s) < Math.abs(a.s - s) ? b : a), route.samples[0]);
+        const bar = new THREE.Mesh(
+          new THREE.BoxGeometry(4.4, 1.4, 0.4),
+          new THREE.MeshBasicMaterial({ color: 0xf87171, transparent: true, opacity: 0.85 }),
+        );
+        bar.position.set(smp.position.x, 0.9, smp.position.z);
+        bar.rotation.y = smp.yaw;
+        group.add(bar);
+      }
+    }
+    // Save point marker (green ring) and fork markers (amber diamonds).
+    if (savePoint) {
+      const smp = route.samples.reduce((a, b) => (Math.abs(b.s - savePoint.s) < Math.abs(a.s - savePoint.s) ? b : a), route.samples[0]);
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(1.6, 0.16, 8, 28),
+        new THREE.MeshBasicMaterial({ color: 0x4ade80 }),
+      );
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(smp.position.x, 0.25, smp.position.z);
+      group.add(ring);
+      this._addDiagLabel('save point', new THREE.Vector3(smp.position.x, 3.2, smp.position.z), '#86efac');
+    }
+    for (const f of forks) {
+      const smp = route.samples.reduce((a, b) => (Math.abs(b.s - f.s) < Math.abs(a.s - f.s) ? b : a), route.samples[0]);
+      const dia = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.9),
+        new THREE.MeshBasicMaterial({ color: 0xfbbf24 }),
+      );
+      dia.position.set(smp.position.x, 1.4, smp.position.z);
+      group.add(dia);
+      this._addDiagLabel(`fork · ${f.label}`, new THREE.Vector3(smp.position.x, 3.4, smp.position.z), '#fcd34d');
+    }
+    if (!this.scene.children.includes(group)) this.scene.add(group);
+  }
+
+  _addDiagLabel(text, pos, color) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 56;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(10,14,20,0.78)';
+    ctx.roundRect?.(0, 0, 256, 56, 9); ctx.fill();
+    ctx.font = '600 24px ui-sans-serif, system-ui';
+    ctx.fillStyle = color;
+    ctx.fillText(text, 10, 36);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+    spr.position.copy(pos);
+    spr.scale.set(13, 2.8, 1);
+    spr.userData.isLabel = true;
+    this.diagGroup.add(spr);
+  }
+
+  clearDiag() {
+    if (this.diagGroup) {
+      this.scene.remove(this.diagGroup);
+      this.diagGroup.clear();
+      this.diagGroup = null;
+    }
+  }
+
+  // Diagnostics overlay: the real kernel measurement (projection polygon and
+  // visibility interval) drawn over the rendered passenger frame. The reason
+  // tag explains the colour so an anomaly is attributed, not just highlighted.
+  drawDiagnosticsOverlay({ cam, landmark, measurement, sightlines, reason, intervalLabel }) {
+    if (!cam) { this._clearOverlay(); return; }
+    const dpr = window.devicePixelRatio || 1;
+    const ctx = this.overlay.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, this.overlay.width, this.overlay.height);
+    ctx.scale(dpr, dpr);
+    const R = this.viewRect ?? { x: 0, y: 0, w: this.vw, h: this.vh };
+    const sx = R.w / REF_W, sy = R.h / REF_H;
+    const mx = (px) => R.x + px * sx;
+    const my = (py) => R.y + py * sy;
+    ctx.strokeStyle = 'rgba(120,160,200,0.35)';
+    ctx.setLineDash([6, 6]);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(R.x + R.w * 0.07, R.y + R.h * 0.09, R.w * 0.86, R.h * 0.82);
+    ctx.setLineDash([]);
+    if (!landmark || !measurement) return;
+
+    // Projected panel footprint, filled from the actual clipped polygon.
+    const poly = (sightlines && this._panelFromSightlines(sightlines)) || measurement.cornersPx;
+    if (poly && poly.length >= 3 && poly.every((c) => c.inFront !== false)) {
+      ctx.beginPath();
+      poly.forEach((c, i) => (i ? ctx.lineTo(mx(c.x), my(c.y)) : ctx.moveTo(mx(c.x), my(c.y))));
+      ctx.closePath();
+      const good = measurement.readable;
+      ctx.strokeStyle = good ? 'rgba(74,222,128,0.95)' : 'rgba(248,113,113,0.95)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = good ? 'rgba(74,222,128,0.10)' : 'rgba(248,113,113,0.08)';
+      ctx.fill();
+    }
+    // Per-ray sightline dots: green free, red blocked, amber blocked-but-no-
+    // panel-overlap (the bounding-volume-error signature).
+    if (sightlines) {
+      for (const ray of sightlines) {
+        if (!ray.projection?.inside) continue;
+        ctx.beginPath();
+        ctx.arc(mx(ray.projection.x), my(ray.projection.y), 2.6, 0, Math.PI * 2);
+        ctx.fillStyle = ray.free ? 'rgba(74,222,128,0.95)'
+          : ray.coversPanel ? 'rgba(248,113,113,0.95)' : 'rgba(251,191,36,0.95)';
+        ctx.fill();
+      }
+    }
+    // Centroid + reason label with the screen area and visibility interval.
+    const c = { x: mx(measurement.centroidPx.x), y: my(measurement.centroidPx.y) };
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 5, 0, Math.PI * 2);
+    ctx.fillStyle = measurement.readable ? '#4ade80' : '#f87171';
+    ctx.fill();
+    ctx.font = '600 12px ui-sans-serif, system-ui';
+    const lines = [
+      `${landmark.name} — ${reason ?? (measurement.readable ? 'readable' : measurement.reasons.join(', ') || 'not readable')}`,
+      `area ${Math.round(measurement.visibleAreaPx)} px² (${(measurement.areaFraction * 100).toFixed(1)}% frame) · visible ${(measurement.visibleFraction * 100).toFixed(0)}% · ${measurement.distance.toFixed(1)} m`,
+      intervalLabel ? `visibility interval: ${intervalLabel}` : '',
+    ].filter(Boolean);
+    const width = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 16;
+    ctx.fillStyle = 'rgba(10,14,20,0.85)';
+    ctx.fillRect(c.x + 10, c.y - 34, width, 20 * lines.length + 6);
+    ctx.fillStyle = measurement.readable ? '#c9f7da' : '#ffd1d1';
+    lines.forEach((l, i) => ctx.fillText(l, c.x + 18, c.y - 18 + i * 18));
+  }
+
+  _panelFromSightlines(sightlines) {
+    const pts = sightlines.filter((r) => r.projection?.inside).map((r) => ({ x: r.projection.x, y: r.projection.y, inFront: true }));
+    return pts.length >= 3 ? pts : null;
+  }
 }
 
 export { makeCamera, measureLandmark, projectPoint, signCorners, signCenter, signBasis };

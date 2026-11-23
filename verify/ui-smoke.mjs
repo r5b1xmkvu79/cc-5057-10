@@ -65,7 +65,7 @@ try {
   check(boot.canvas, 'viewport canvas is missing');
   check(boot.landmarks >= 3, `expected >=3 landmarks, got ${boot.landmarks}`);
   check(boot.historic.length === 1, `expected the mint to stay locked, got ${JSON.stringify(boot.historic)}`);
-  check(boot.modes.join(',') === 'edit,replay,tradeoff', `unexpected modes: ${boot.modes}`);
+  check(boot.modes.join(',') === 'edit,replay,tradeoff,diagnostics', `unexpected modes: ${boot.modes}`);
   for (const [rid, f] of Object.entries(boot.covered)) check(f > 0.5, `route ${rid} barely covered (${f})`);
 
   await page.screenshot({ path: resolve(ROOT, 'artifacts/ui-edit.png') });
@@ -113,6 +113,75 @@ try {
   });
   check(!trade.hidden, 'trade-off panel not shown in trade-off mode');
   await page.screenshot({ path: resolve(ROOT, 'artifacts/ui-tradeoff.png') });
+
+  // ---- diagnostics mode: evidence chains, deterministic fingerprints, the
+  // corridor/closure overlay and the repair boundary decision.
+  await page.click('button[data-mode="diagnostics"]');
+  await sleep(700);
+  const diag = await page.evaluate(() => {
+    const e = window.__editor;
+    const s = e.state;
+    const panel = document.querySelector('#panel-diagnostics');
+    const d = s.diagnostics;
+    const chain = d.chains[d.landmarkId];
+    const fpFirst = chain?.fingerprint;
+    // Re-run without edits: fingerprints must be stable (no phantom drift).
+    e.runDiagnostics();
+    const chain2 = s.diagnostics.chains[d.landmarkId];
+    return {
+      hidden: panel.classList.contains('hidden'),
+      barVisible: !document.querySelector('#diag-bar').classList.contains('hidden'),
+      chainCount: Object.keys(d.chains).length,
+      fingerprint: fpFirst,
+      fingerprintStable: fpFirst != null && fpFirst === chain2?.fingerprint,
+      mismatches: Array.isArray(chain?.mismatches),
+      decision: d.decision?.recommendation ?? null,
+      hasStrips: panel.querySelectorAll('.diag-strip').length,
+      logCost: chain?.logCost?.fullEvidenceRecords ?? null,
+    };
+  });
+  check(!diag.hidden, 'diagnostics panel not shown in diagnostics mode');
+  check(diag.barVisible, 'diagnostics scrub bar not shown');
+  check(diag.chainCount >= 3, `expected evidence chains per landmark, got ${diag.chainCount}`);
+  check(diag.fingerprintStable, 'evidence fingerprint drifted on an unchanged re-run');
+  check(diag.mismatches, 'mismatch list missing from the chain');
+  check(['A-move-landmark', 'B-guide-node', 'split-route', 'report-unseen', 'no-repair-needed'].includes(diag.decision),
+    `unexpected repair recommendation: ${diag.decision}`);
+  check(diag.hasStrips >= 3, 'visibility interval strips missing');
+  check(Number.isFinite(diag.logCost), 'log cost missing from the evidence chain');
+
+  // Scrubbing the slider must move the diagnostics camera and produce an overlay.
+  await page.evaluate(() => {
+    const el = document.querySelector('#diag-slider');
+    el.value = String(Math.round(Number(el.max) * 0.4));
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await sleep(300);
+  const scrubbed = await page.evaluate(() => {
+    const s = window.__editor.state.diagnostics;
+    const badge = document.querySelector('#diag-badge').textContent;
+    return { s: s.s, badge };
+  });
+  check(scrubbed.s > 0, 'diagnostics slider did not move the passenger');
+  check(scrubbed.badge.length > 0, 'diagnostics badge never reported a verdict');
+
+  // Closing the road must mark corridor samples as refused and keep a fingerprint.
+  const closure = await page.evaluate(() => {
+    const e = window.__editor;
+    e.toggleClosure(true);
+    const d = e.state.diagnostics;
+    const chain = d.chains[d.landmarkId];
+    return {
+      closed: chain.logCost.closedSamples > 0,
+      closedSamples: chain.logCost.closedSamples,
+      fingerprint: chain.fingerprint,
+      badge: document.querySelector('#diag-badge').className,
+    };
+  });
+  check(closure.closed, 'road closure did not refuse any corridor samples');
+  check(typeof closure.fingerprint === 'string' && closure.fingerprint.length === 8, 'closed-run fingerprint missing');
+  await page.evaluate(() => window.__editor.toggleClosure(false));
+  await page.screenshot({ path: resolve(ROOT, 'artifacts/ui-diagnostics.png') });
 
   // ---- edit mode: move a landmark, confirm the kernel re-evaluates
   await page.click('button[data-mode="edit"]');

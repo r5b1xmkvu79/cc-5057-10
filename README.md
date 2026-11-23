@@ -39,16 +39,92 @@ writes exported reports under `artifacts/`). The browser must be able to load
 ES modules from `node_modules/three`; the server serves those directly, so no
 build step is needed.
 
-Once open you get three modes (top bar):
+Once open you get four modes (top bar):
 
 | Mode | What you do |
 | --- | --- |
 | **Edit** | Orbit the diorama (right-mouse drag / wheel). Click a landmark, drag its ground ring, or edit its `x` / `z` / yaw fields. Coverage re-measures live. **Auto-place** re-runs the solver. **Export report** POSTs the measured plan to `artifacts/plan-*.json`. |
 | **Route replay** | Scrub or play along either route. The passenger view is letterboxed to the 1280×720 reference frame. The green box is the measured sign footprint; the dashed box is the safe viewport; the top-right HUD shows area / unoccluded / on-screen / angular height / distance / verdict. The coverage strip and blind-run list jump you straight to a gap. |
 | **Trade-off** | Focused comparison for a mutually-occluding pair: *migrate the landmark* vs *adjust the observer point*, each with its measured share of the contested window and its longest blind run inside it. Seated routes refuse the observer option outright. |
+| **Diagnostics** | The graphical entry point for visibility-mismatch work. Pick a route and landmark, optionally apply the **temporary road closure**, and scrub the route from the **save point**. The 3D view shows the navigator's walkable corridor (cyan ribbon), red closure barricades, the green save-point ring and amber fork markers; the overlay draws the real projected panel polygon, per-ray sightline dots (green free / red blocked / amber blocked-without-panel-overlap) and the visibility interval. The sidebar shows per-landmark evidence fingerprints, interval strips, mismatch cards with cause + stage + named blockers, bounding-volume warnings, log cost and the boundary repair decision (Scheme A / Scheme B / split / report unseen). |
 
 If the headless screenshot checks are what you want to run, see
 [Verification](#verification); they need the private sysroot described there.
+
+---
+
+## Visibility-mismatch diagnostics
+
+The Diagnostics mode and `kernel/diagnostics.js` answer the brief's core
+question: **which cases pass the placement evaluation yet are actually
+invisible, and what is the evidence-backed repair?**
+
+### Corridors are ground truth
+
+The navigator — not the visibility kernel — owns where an observer may stand.
+`makeCorridor(route, overrides)` models the walkable surface as a centreline
+plus an arc-length-varying half-width, with zero-width stretches for a fixed
+seat or a closed road. Every diagnostic camera is a legal corridor pose; an
+"unblocked" ray from an illegal pose is never recorded as evidence. A
+**temporary closure** (`demoClosure` in `content/scenes.js`) refuses the closed
+arc and the walk resumes from the route's **save point** on foot.
+
+### Evidence chains and fingerprints
+
+Each (route, landmark) pair gets an evidence chain: per-sample projection, the
+per-ray occlusion query with the winning blocker named, and the screen-area /
+visibility intervals derived from the rows. A deterministic FNV-1a
+**fingerprint** (canonical, number-rounded JSON) covers every row, transition
+and closed sample, so re-running an unchanged configuration is proven identical
+and any drift is a failure. The tracker cannot raise a phantom report: a
+critical-occlusion mismatch must name the blocker that won the rays, and every
+other mismatch needs a blocker, a render disagreement, or a real threshold
+breach. Log volume is budgeted (`DEFAULT_BUDGET`): routine stride sampling,
+full per-ray detail only around readability transitions, and a hard cap on
+retained evidence records.
+
+### Boundary condition and the two repair schemes
+
+`decideRepair()` closes the road, walks from the save point, and combines the
+**first guide-loss location** with the **fork the walker ultimately enters**:
+
+* **Scheme A — move the landmark.** Chosen when a counterfactual replay
+  removing exactly one occluder restores the whole first-loss window (the
+  per-object culling case) and no fork was committed before the loss. A lateral
+  offset search confirms a feasible new position.
+* **Scheme B — change the guide/observer node.** Only legal on free-viewpoint
+  routes; a fixed seat returns `fixed viewpoint: the seated eye cannot be
+  relocated`, and a fork entered before the loss rejects the nudge outright.
+* **Split the route.** When the loss survives every single-object removal (or a
+  fork was already taken), the route is split at its sightline intersections
+  and each segment that cannot hold the guide gets its own guide node.
+* **Report unseen.** When the landmark never becomes legible from any reachable
+  pose, the stretch is reported rather than given fabricated guidance.
+
+For briefly disappearing targets, `counterfactualReplay()` removes one object
+at a time and measures the regained arc length; `locateMismatch()` tries every
+named blocker and pins the root occluder. `boundingVolumeErrors()` flags the
+AABB-error signature — rays blocked by a box whose projected polygon never
+overlaps the panel — which is drawn as amber dots in the overlay. Root causes
+are classified as **critical-occlusion**, **distant-small**, or
+**composition-threshold**, and distinguished from **under-sampling** by the
+occlusion boundary rather than the sign's distance, each tagged with the
+pipeline **stage** where the anomaly was observed.
+
+### CLI is auxiliary
+
+The command line only re-runs the same kernel the graphical mode uses; it
+cannot replace the editor viewport:
+
+```bash
+npm run diagnose            # open-corridor evidence chains, fingerprint drift check
+npm run diagnose:closure    # same walk with the temporary road closure applied
+# add --out artifacts/diag to write the full evidence JSON
+```
+
+Both commands run every chain twice and fail on fingerprint drift or a phantom
+mismatch. The graphical Diagnostics mode is the primary entry point; the CLI
+exists for batch verification and artifact capture.
 
 ---
 
@@ -84,6 +160,13 @@ The tool demonstrates every requirement:
    frames and the same sign as a white mask; the rendered pixel counts are
    compared against the kernel's analytic projection. The check that used to
    fail (a sign straddling the frustum edge) is now a regression test.
+7. **Visibility-mismatch diagnostics.** The navigator corridor is the ground
+   truth; evidence chains with deterministic fingerprints record projection,
+   occlusion and sampling; a temporary closure is walked from the save point;
+   counterfactual single-object removal and the first-loss/fork boundary choose
+   between moving the landmark (A), moving the guide node (B), splitting the
+   route, or honestly reporting the stretch unseen. See
+   [Visibility-mismatch diagnostics](#visibility-mismatch-diagnostics).
 
 The delivered plan and measured report are written to `artifacts/verify/`:
 
@@ -105,15 +188,24 @@ kernel/visibility.js  makeCamera, sign corners/samples, measureLandmark()
 kernel/placement.js   catalog → landmark, candidate generation, landmark
                       occluder boxes, evaluatePlan, greedy set-cover solver,
                       explainPlan, compareTradeoff.
+kernel/diagnostics.js walkable corridors + closures, evidence tracker with
+                      deterministic fingerprints, counterfactual single-object
+                      replay, sightline route splits, Scheme A/B evaluation and
+                      the first-loss/fork boundary decision.
 content/world.js      the district: occluders, platforms, landmark catalog.
 content/scenes.js     the two routes, key segments, shared sign, mutual pair,
-                      locked historic clock; materializeScene().
+                      locked historic clock, corridor/save-point/fork/closure
+                      ground truth; materializeScene().
 app/                  the editor: index.html, style.css, viewport.js (three.js
-                      diorama + replay camera), main.js (controller/UI).
+                      diorama + replay/diagnostics camera + corridor overlay),
+                      main.js (controller/UI for all four modes).
 scripts/serve.mjs     static server + POST /api/report.
-verify/               kernel.test.mjs (unit), verify.mjs (node + headless
-                      render), render.html (rasterisation harness),
-                      ui-smoke.mjs (drives the real UI).
+scripts/diagnose.mjs  CLI batch runner for the diagnostics evidence chains
+                      (auxiliary; the graphical mode is the primary entry).
+verify/               kernel.test.mjs (unit), diagnostics.test.mjs (evidence,
+                      corridors, counterfactual, repair decisions), verify.mjs
+                      (node + headless render), render.html (rasterisation
+                      harness), ui-smoke.mjs (drives the real UI).
 ```
 
 **Single source of truth.** `measureLandmark()` in `kernel/visibility.js` is
@@ -137,10 +229,16 @@ come from a full re-evaluation, never the fast path.
 Three independent gates:
 
 ```bash
-npm test          # kernel unit tests (18): geometry, clipping regression,
-                  #   visibility gates, occluder derivation, solver constraints
+npm test          # node:test suites — 43 tests total:
+                  #   kernel (18): geometry, clipping regression, visibility
+                  #     gates, occluder derivation, solver constraints
+                  #   diagnostics (25): fingerprints/determinism, corridors &
+                  #     closures, no-phantom-mismatch, counterfactual replay,
+                  #     bounding-volume errors, route splits, Scheme A/B and
+                  #     the first-loss/fork boundary, Harbor Quarter end-to-end
 npm run verify:ui # boots the real editor in headless Chromium, exercises all
-                  #   three modes + auto-place + export; fails on any console error
+                  #   four modes (incl. diagnostics scrubbing, closure, stable
+                  #   fingerprints) + auto-place + export; fails on console error
 npm run verify    # re-authors the plan in Node, renders passenger frames in
                   #   headless Chromium, and checks render-vs-measurement
 ```

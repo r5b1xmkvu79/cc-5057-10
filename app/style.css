@@ -128,3 +128,50 @@ select, #topbar button, .modes button {
 .btn-row button.primary { border-color: var(--accent); color: var(--accent); }
 .note { border-left: 3px solid var(--warn); padding: 6px 9px; background: #1c1a13; color: #e8d9a8; border-radius: 0 6px 6px 0; font-size: 12px; line-height: 1.5; }
 .epistemic { border-left: 3px solid var(--accent); background: #0f1c24; color: #b8dbe9; padding: 7px 9px; border-radius: 0 6px 6px 0; font-size: 12px; line-height: 1.5; }
+
+/* Diagnostics mode */
+#diag-bar {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: 48px; display: flex; align-items: center; gap: 12px;
+  background: rgba(13,18,25,.92); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; width: min(720px, 92%);
+}
+#diag-bar.hidden { display: none; }
+#diag-slider { flex: 1; accent-color: var(--accent); }
+#diag-readout { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 64px; text-align: right; }
+.diag-badge { font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
+.diag-badge.ok { color: var(--good); border-color: #2b5138; background: #12251a; }
+.diag-badge.bad { color: var(--bad); border-color: #5a2727; background: #241313; }
+.diag-badge.warn { color: var(--warn); border-color: #55451b; background: #241f11; }
+.diag-badge.closed { color: #c4b5fd; border-color: #463a6b; background: #1b1730; }
+
+.diag-controls { display: flex; flex-direction: column; gap: 8px; }
+.diag-controls label { color: var(--muted); font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
+.diag-controls select, .diag-controls input[type=range] { accent-color: var(--accent); }
+.diag-toggle { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+.diag-chain { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+.diag-chain .dc-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.diag-chain .dc-name { font-weight: 600; }
+.diag-chain .dc-fp { font-family: ui-monospace, monospace; color: var(--muted); font-size: 11px; }
+.diag-strip { display: flex; gap: 1px; height: 16px; margin: 8px 0 4px; border-radius: 3px; overflow: hidden; }
+.diag-strip .cell { flex: 1; background: #23303f; }
+.diag-strip .cell.vis { background: #2f8f57; }
+.diag-strip .cell.area { background: #8a6d22; }
+.diag-strip .cell.closed { background: #463a6b; }
+.diag-legend { display: flex; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 11px; margin: 4px 0 8px; }
+.diag-legend i { display: inline-block; width: 12px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+.diag-mm { border: 1px solid var(--line); border-left-width: 3px; border-radius: 6px; padding: 7px 9px; margin: 6px 0; font-size: 12px; line-height: 1.5; background: var(--panel-2); }
+.diag-mm.critical-occlusion { border-left-color: var(--bad); }
+.diag-mm.distant-small { border-left-color: var(--warn); }
+.diag-mm.composition-threshold { border-left-color: var(--accent); }
+.diag-mm.render-disagreement { border-left-color: #c4b5fd; }
+.diag-mm .mm-stage { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+.diag-mm .mm-blockers { color: #ffd1d1; }
+.diag-kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-variant-numeric: tabular-nums; font-size: 12px; }
+.diag-kv .k { color: var(--muted); }
+.diag-rec { border-radius: 8px; padding: 10px; margin: 8px 0; border: 1px solid var(--line); background: var(--panel); }
+.diag-rec h4 { margin: 0 0 6px; font-size: 13px; }
+.diag-rec.A-move-landmark { border-color: var(--good); }
+.diag-rec.B-guide-node { border-color: var(--accent); }
+.diag-rec.split-route { border-color: #c4b5fd; }
+.diag-rec.report-unseen { border-color: var(--bad); }
+.diag-seg { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid #1e2735; font-size: 12px; }
+.diag-anomaly { color: var(--warn); font-weight: 600; }

@@ -32,6 +32,7 @@
       <button data-mode="edit" class="active" role="tab">Edit</button>
       <button data-mode="replay" role="tab">Route replay</button>
       <button data-mode="tradeoff" role="tab">Trade-off</button>
+      <button data-mode="diagnostics" role="tab">Diagnostics</button>
     </div>
     <div class="top-actions">
       <button id="btn-solve" title="Run the placement kernel">Auto-place</button>
@@ -55,6 +56,11 @@
         <button id="btn-prev-key">‹ key</button>
         <button id="btn-next-key">key ›</button>
       </div>
+      <div id="diag-bar" class="hidden">
+        <input id="diag-slider" type="range" min="0" max="1000" value="0" />
+        <span id="diag-readout">0.0 m</span>
+        <span id="diag-badge" class="diag-badge"></span>
+      </div>
       <div id="legend">
         <span><i class="sw readable"></i>readable here</span>
         <span><i class="sw partial"></i>partial / marginal</span>
@@ -69,6 +75,7 @@
       <div id="panel-result" class="panel"></div>
       <div id="panel-explain" class="panel"></div>
       <div id="panel-tradeoff" class="panel hidden"></div>
+      <div id="panel-diagnostics" class="panel hidden"></div>
       <div id="panel-help" class="panel"></div>
     </aside>
   </main>
